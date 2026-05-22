@@ -1,0 +1,69 @@
+name: Calendar Event
+
+on:
+  workflow_dispatch:
+    inputs:
+      request:
+        description: "Pedido em linguagem natural. Ex: adicionar prova de Calculo sexta as 10h"
+        required: false
+        type: string
+      event_json:
+        description: "JSON revisado para confirmacao. Use no segundo run quando confirm=true."
+        required: false
+        type: string
+      confirm:
+        description: "Criar evento apos revisar a proposta?"
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  calendar-event:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Propose event
+        if: ${{ !inputs.confirm }}
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-2.5-flash' }}
+          GOOGLE_TOKEN_JSON: ${{ secrets.GOOGLE_TOKEN_JSON }}
+          GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID || 'primary' }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          TIMEZONE: America/Sao_Paulo
+          REQUEST: ${{ inputs.request }}
+        run: python -m scheduler_agent propose-event "$REQUEST" --send-email
+
+      - name: Save confirmed event JSON
+        if: ${{ inputs.confirm }}
+        env:
+          EVENT_JSON: ${{ inputs.event_json }}
+        run: printf '%s' "$EVENT_JSON" > confirmed_event.json
+
+      - name: Add confirmed event
+        if: ${{ inputs.confirm }}
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_TOKEN_JSON: ${{ secrets.GOOGLE_TOKEN_JSON }}
+          GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID || 'primary' }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          TIMEZONE: America/Sao_Paulo
+        run: python -m scheduler_agent add-event --event-json confirmed_event.json --send-email
