@@ -5,7 +5,7 @@ Agente de rotina em Python usando Gemini GenAI, Google Calendar e envio por SMTP
 Ele roda sem interface:
 
 - envia um resumo diario por email com a programacao do dia e os proximos eventos do mes;
-- le eventos existentes do Google Calendar;
+- le eventos existentes do Google Calendar, incluindo calendarios compartilhados como `1ads`;
 - interpreta pedidos em linguagem natural para criar eventos;
 - pede confirmacao antes de adicionar um evento ao calendario.
 
@@ -35,7 +35,15 @@ python scripts/auth_google.py
 
 Isso cria `token.json`. Ele permite que o agente acesse seu Google Calendar.
 
-5. Teste o resumo diario:
+5. Liste os calendarios acessiveis e confirme o nome/ID da linha `1ads`:
+
+```powershell
+python -m scheduler_agent list-calendars
+```
+
+No `.env` ou secret `GOOGLE_CALENDAR_ID`, use `1ads` ou o ID exibido por esse comando.
+
+6. Teste o resumo diario:
 
 ```powershell
 python -m scheduler_agent daily-summary --send-email

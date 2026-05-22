@@ -12,17 +12,52 @@ SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
 
 class CalendarClient:
-    def __init__(self, token_file: str, calendar_id: str) -> None:
-        self.calendar_id = calendar_id
+    def __init__(self, token_file: str, calendar_id: str, resolve_calendar: bool = True) -> None:
         credentials = Credentials.from_authorized_user_file(token_file, SCOPES)
         self.service = build("calendar", "v3", credentials=credentials)
+        self.calendar_id = self.resolve_calendar_id(calendar_id) if resolve_calendar else calendar_id
 
     @classmethod
-    def from_token_json(cls, token_json: str, calendar_id: str) -> "CalendarClient":
+    def from_token_json(
+        cls,
+        token_json: str,
+        calendar_id: str,
+        resolve_calendar: bool = True,
+    ) -> "CalendarClient":
         token_file = os.getenv("GOOGLE_TOKEN_FILE", "token.json")
         with open(token_file, "w", encoding="utf-8") as handle:
             handle.write(token_json)
-        return cls(token_file=token_file, calendar_id=calendar_id)
+        return cls(token_file=token_file, calendar_id=calendar_id, resolve_calendar=resolve_calendar)
+
+    def list_calendars(self) -> list[dict[str, Any]]:
+        calendars: list[dict[str, Any]] = []
+        page_token = None
+        while True:
+            response = self.service.calendarList().list(pageToken=page_token).execute()
+            calendars.extend(response.get("items", []))
+            page_token = response.get("nextPageToken")
+            if not page_token:
+                return calendars
+
+    def resolve_calendar_id(self, calendar_id_or_name: str) -> str:
+        if calendar_id_or_name == "primary" or "@" in calendar_id_or_name:
+            return calendar_id_or_name
+
+        normalized_target = _normalize_calendar_name(calendar_id_or_name)
+        calendars = self.list_calendars()
+        for calendar in calendars:
+            summary = _normalize_calendar_name(calendar.get("summary", ""))
+            summary_override = _normalize_calendar_name(calendar.get("summaryOverride", ""))
+            if normalized_target in {summary, summary_override}:
+                return calendar["id"]
+
+        available = ", ".join(
+            calendar.get("summaryOverride") or calendar.get("summary", calendar.get("id", ""))
+            for calendar in calendars
+        )
+        raise RuntimeError(
+            f"Calendar '{calendar_id_or_name}' was not found. Available calendars: {available}"
+        )
 
     def list_events(self, start: datetime, end: datetime, max_results: int = 100) -> list[dict[str, Any]]:
         response = (
@@ -91,3 +126,7 @@ def _event_time(value: str, timezone_name: str | None) -> dict[str, str]:
 
 def dump_event_json(event: dict[str, Any]) -> str:
     return json.dumps(event, ensure_ascii=True, indent=2)
+
+
+def _normalize_calendar_name(value: str) -> str:
+    return value.casefold().strip()

@@ -21,14 +21,13 @@ class GeminiPlanner:
         now: datetime,
     ) -> str:
         prompt = f"""
-Voce e uma IA planner para faculdade. Escreva um email curto, claro e util em portugues do Brasil.
+Voce e uma IA planner para faculdade. Escreva um paragrafo curto, claro e util em portugues do Brasil.
 
 Contexto:
 - Agora: {now.isoformat()}
-- O usuario quer a programacao do dia em ordem cronologica.
-- Depois, liste os proximos eventos do mes tambem em ordem cronologica.
+- O layout do email sera gerado pelo sistema; nao use markdown, listas, saudacao ou assinatura.
 - Foque em provas, trabalhos, entregas, aulas, compromissos e prazos.
-- Nao invente eventos. Se nao houver eventos, diga isso de forma objetiva.
+- Nao invente eventos. Se nao houver eventos hoje, diga isso de forma objetiva.
 - Termine com uma frase curta de planejamento do dia.
 
 Eventos de hoje:

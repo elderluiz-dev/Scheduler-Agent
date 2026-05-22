@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from scheduler_agent.calendar_client import CalendarClient, dump_event_json
 from scheduler_agent.config import load_settings
+from scheduler_agent.email_templates import render_daily_summary_email
 from scheduler_agent.emailer import send_email
 from scheduler_agent.gemini_agent import GeminiPlanner
 
@@ -32,29 +33,47 @@ def main() -> None:
     add.add_argument("--event-json", required=True, help="JSON inline ou caminho para arquivo JSON")
     add.add_argument("--send-email", action="store_true")
 
+    subparsers.add_parser("list-calendars", help="Lista calendarios acessiveis")
+
     args = parser.parse_args()
     settings = load_settings()
     timezone = ZoneInfo(settings.timezone)
     now = datetime.now(timezone)
 
     token_json = os.getenv("GOOGLE_TOKEN_JSON")
+    resolve_calendar = args.command != "list-calendars"
     calendar = (
-        CalendarClient.from_token_json(token_json, settings.google_calendar_id)
+        CalendarClient.from_token_json(token_json, settings.google_calendar_id, resolve_calendar=resolve_calendar)
         if token_json
-        else CalendarClient(settings.google_token_file, settings.google_calendar_id)
+        else CalendarClient(settings.google_token_file, settings.google_calendar_id, resolve_calendar=resolve_calendar)
     )
     planner = GeminiPlanner(settings.gemini_api_key, settings.gemini_model)
+
+    if args.command == "list-calendars":
+        for item in calendar.list_calendars():
+            name = item.get("summaryOverride") or item.get("summary") or "(sem nome)"
+            print(f"{name} -> {item.get('id')}")
+        return
 
     if args.command == "daily-summary":
         day_start = datetime.combine(now.date(), time.min, tzinfo=timezone)
         today, upcoming = calendar.list_daily_and_upcoming(day_start, settings.daily_lookahead_days)
         body = planner.daily_summary(today, upcoming, now)
+        html_body = render_daily_summary_email(
+            body,
+            today,
+            upcoming,
+            now,
+            settings.timezone,
+            settings.google_calendar_id,
+        )
         print(body)
         if args.send_email:
             _send_configured_email(
                 settings,
                 f"Programacao do dia - {now:%d/%m/%Y}",
                 body,
+                html_body,
             )
         return
 
@@ -106,7 +125,7 @@ def _load_event_json(value: str) -> dict:
     return json.loads(value)
 
 
-def _send_configured_email(settings, subject: str, body: str) -> None:
+def _send_configured_email(settings, subject: str, body: str, html_body: str | None = None) -> None:
     required = {
         "SMTP_HOST": settings.smtp_host,
         "SMTP_USERNAME": settings.smtp_username,
@@ -127,6 +146,7 @@ def _send_configured_email(settings, subject: str, body: str) -> None:
         settings.email_to,
         subject,
         body,
+        html_body,
     )
 
 
