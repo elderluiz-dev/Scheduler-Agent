@@ -2,7 +2,7 @@ name: Daily Calendar Summary
 
 on:
   schedule:
-    - cron: "30 9 * * *"
+    - cron: "30 7 * * *"
   workflow_dispatch:
 
 jobs:
@@ -30,6 +30,5 @@ jobs:
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          TIMEZONE: America/Sao_Paulo
           DAILY_LOOKAHEAD_DAYS: "31"
         run: python -m scheduler_agent daily-summary --send-email
